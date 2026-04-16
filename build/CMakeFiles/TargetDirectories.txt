@@ -1,0 +1,4 @@
+/home/charon/Reactor_Server/build/CMakeFiles/Server.dir
+/home/charon/Reactor_Server/build/CMakeFiles/Client.dir
+/home/charon/Reactor_Server/build/CMakeFiles/edit_cache.dir
+/home/charon/Reactor_Server/build/CMakeFiles/rebuild_cache.dir

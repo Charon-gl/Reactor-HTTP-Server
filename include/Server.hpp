@@ -17,12 +17,12 @@ private:
     std::unordered_set<int> cfds;
 
     void init();
-    void run();
-
-public:
+    
+    public:
     Server();
     Server(const Server &) = delete;
     Server(Server &&) = delete;
+    void run();
     ~Server();
 };
 

@@ -7,6 +7,9 @@ void Server::init()
     {
         throw std::runtime_error("Socket failed");
     }
+    int flag = fcntl(lfd, F_GETFL);
+    fcntl(lfd, F_SETFL, flag | O_NONBLOCK);
+    
     addr.sin_family = AF_INET;
     addr.sin_addr.s_addr = INADDR_ANY;
     addr.sin_port = htons(8888);
@@ -47,18 +50,18 @@ void Server::run()
             {
                 while(1)
                 {
-                    if(errno == EAGAIN)
-                        break;
                     int cfd = accept(lfd, NULL, NULL);
                     if(cfd == -1)
                     {
+                        if(errno == EAGAIN)
+                            break;
                         std::cerr << "Accept new client failed" << std::endl;
                         continue;
                     }
-                    ev.events = EPOLLIN;
+                    ev.events = EPOLLIN | EPOLLET;
                     ev.data.fd = cfd;
-                    int flag = fcntl(cfd, F_GETFD);
-                    fcntl(cfd, F_SETFD, flag | EPOLLET);
+                    int flag = fcntl(cfd, F_GETFL);
+                    fcntl(cfd, F_SETFL, flag | O_NONBLOCK);
                     ret = epoll_ctl(epfd, EPOLL_CTL_ADD, cfd, &ev);
                     if(ret == -1)
                     {
@@ -72,17 +75,16 @@ void Server::run()
             {
                 while(1)
                 {
-                    if(errno = EAGAIN)
-                        break;
                     char buf[1024];
                     int len = recv(fd, buf, sizeof(buf) - 1, 0);
-                    if(len == -1)
+                    if(len <= 0)
                     {
-                        std::cerr << "Recv from " << fd << " failed" << std::endl;
-                        break;
-                    }
-                    else if(len == 0)
-                    {
+                        if(len == -1)
+                        {
+                            if(errno == EAGAIN)
+                                break;
+                            std::cerr << "Recv from " << fd << " failed" << std::endl;
+                        }
                         int del = epoll_ctl(epfd, EPOLL_CTL_DEL, fd, NULL);
                         if(del == -1)
                         {
@@ -91,6 +93,8 @@ void Server::run()
                         }
                         std::cout << "Client disconnected..." << std::endl;
                         close(fd);
+                        cfds.erase(fd);
+                        break;
                     }
                     else 
                     {
@@ -120,11 +124,15 @@ void Server::run()
 Server::Server() : lfd(-1), epfd(-1)
 {
     init();
-    run();
 }
 
 Server::~Server()
 {
+    for(auto& i : cfds)
+    {
+        if(i != -1)
+            close(i);
+    }
     if(epfd != -1)
         close(epfd);
     if(lfd != -1)
