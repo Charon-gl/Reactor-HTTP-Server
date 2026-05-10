@@ -5,34 +5,48 @@ Channel::Channel(int _fd, EventLoop* _eventLoop)
 {
     int flag = fcntl(fd, F_GETFL);
     fcntl(fd, flag | O_NONBLOCK);
-    eventloop->add_new_channel(this);
 }
 
-void Channel::set_read_callback(std::function<void()> _cb)
-{
-    read_callback = std::move(_cb);
-}
+void Channel::set_read_callback(std::function<int()> _cb) { read_callback = std::move(_cb); }
 
-void Channel::set_write_callback(std::function<void()> _cb)
-{
-    write_callback = std::move(_cb);
-}
+void Channel::set_write_callback(std::function<int()> _cb) { write_callback = std::move(_cb); }
 
-void Channel::set_error_callback(std::function<void()> _cb)
-{
-    error_callback = std::move(_cb);
-}
+void Channel::set_disconnect_callback(std::function<void(int)> _cb) { disconnect_callback = std::move(_cb); }
+
+void Channel::do_close(int _errno) { disconnect_callback(_errno); }
 
 void Channel::event_handle(uint32_t revents)
 {
-    if(events == 0)
+    if(revents == 0)
         return;
     if(revents | EPOLLIN)
-        read_callback;
-    if(revents | EPOLLOUT)
-        write_callback;
-    if(revents | EPOLLERR)
-        error_callback;
+    {
+        int ret = read_callback();
+        if(ret >= 0)
+        {
+            do_close(errno);
+            return;
+        }
+    }
+    if(revents & (EPOLLERR || revents | EPOLLHUP || revents | EPOLLRDHUP))
+    {
+        int err = 0;
+        socklen_t len = sizeof(err);
+        getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &len);
+        if(err == 0)
+            err = -1;   //表示未知错误
+        do_close(err);
+        return;
+    }
+    if (revents | EPOLLOUT)
+    {
+        int ret = write_callback();
+        if (ret >= 0)
+        {
+            do_close(errno);
+            return;
+        }
+    }
 }
 
 bool Channel::enable_reading()
@@ -86,4 +100,5 @@ Channel::~Channel()
 {
     if(fd != -1)
         close(fd);
+    fd = -1;
 }
