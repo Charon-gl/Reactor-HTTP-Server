@@ -1,8 +1,8 @@
 #include "HTTP_Analysis.hpp"
 
-std::string HTTP_Analysis::trim(const std::string& _data)
+HTTP_Analysis::HTTP_Analysis()
 {
-    
+    content_type = {{"html", "text/html; charset=utf-8"}, {"txt", "text/plain"}};
 }
 
 HTTP_Analysis::HTTP_SET HTTP_Analysis::GET(const std::string &request)
@@ -33,19 +33,49 @@ HTTP_Analysis::HTTP_SET HTTP_Analysis::GET(const std::string &request)
         pos = tmp.find(':');
         //考虑使用一个自定义的trim去掉空格
         new_request.emplace(K_V(tmp.substr(0, pos), tmp.substr(pos + 1, tmp.size() - pos)));
+        tmp.clear();
     }
     return new_request;
 }
 
-std::string HTTP_Analysis::RESPONSE(HTTP_SET obj)
+std::string HTTP_Analysis::RESPONSE(const HTTP_SET& request)
 {
     //需要分情况：1.url资源存在 2.资源不存在
+    auto URL = request.find("url")->second;
+    if(std::filesystem::exists(URL) && std::filesystem::is_regular_file(URL))
+    {
+        std::ifstream ifs(URL, std::ios::binary | std::ios::in);    //消息主体必须传二进制
+        //获取扩展名（然后转成Content-Type）
+        size_t pos = URL.find_last_of('.');
+        std::string file_type = URL.substr(pos + 1, URL.size() - pos);
+        std::string _response = request.find("version")->second + " 200" + " OK\r\n" 
+                                + "Content-Type: " + content_type.find(file_type)->second + "\r\n" 
+                                + "Content-Length: " + std::to_string(std::filesystem::file_size(URL)) + "\r\n" 
+                                + "Connection: close\r\n" 
+                                + "\r\n";
 
-
+        //响应主体
+        std::string tmp;
+        while (std::getline(ifs, tmp))
+        {
+            _response += tmp;
+            tmp.clear();
+        }
+        ifs.close();
+        return _response;
+    }
+    //简单处理，默认返回404
+    std::string no_resource = "<h1>404 Not Found</h1>";
+    std::string _response = request.find("version")->second + " 200" + " OK\r\n" 
+                            + "Content-Type: " + "text/html\r\n" 
+                            + "Content-Length: " + std::to_string(no_resource.size() )+ "\r\n" 
+                            + "Connection: close\r\n" 
+                            + "\r\n" 
+                            + no_resource;
+    return _response;
 }
 
-void HTTP_Analysis::package(const std::string& request)
+std::string HTTP_Analysis::package(const std::string& request)
 {
-    HTTP_SET obj = std::move(GET(request));
-    std::string response = RESPONSE(obj);
+    return RESPONSE(std::move(GET(request)));
 }

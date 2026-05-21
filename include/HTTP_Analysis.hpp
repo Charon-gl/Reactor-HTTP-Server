@@ -4,8 +4,10 @@
 #include <string>
 #include <sstream>
 #include <unordered_map>
+#include <filesystem>
+#include <fstream>
 
-struct request_content
+/*struct request_content
 {
 private:
     std::string _Host;
@@ -22,28 +24,27 @@ private:
     std::string Origin;
     std::string Content_Type;
     std::string Content_Length;
-
+    
 public:
     request_content() = default;
 };
-
+*/
 class HTTP_Analysis
 {
-private:
     using HTTP_SET = std::unordered_map<std::string, std::string>;
     using K_V = std::pair<std::string, std::string>;
+private:
+    HTTP_Analysis();
+    static HTTP_SET content_type;  //存放响应内容主体的类型映射
 
-    HTTP_Analysis() = default;
-
-    std::string trim(const std::string &);
+    static HTTP_SET GET(const std::string &);
+    static std::string RESPONSE(const HTTP_SET&);
 
 public:
     HTTP_Analysis(const HTTP_Analysis &) = delete;
     HTTP_Analysis(HTTP_Analysis &&) = delete;
 
-    static HTTP_SET GET(const std::string &);
-    static std::string RESPONSE(HTTP_SET);
-    static void package(const std::string &);
+    static std::string package(const std::string &);
 
     ~HTTP_Analysis() = default;
 };
