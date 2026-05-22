@@ -31,11 +31,12 @@ public:
 */
 class HTTP_Analysis
 {
+public:
     using HTTP_SET = std::unordered_map<std::string, std::string>;
     using K_V = std::pair<std::string, std::string>;
 private:
-    HTTP_Analysis();
-    static HTTP_SET content_type;  //存放响应内容主体的类型映射
+    HTTP_Analysis() = default;
+    static HTTP_SET content_type;    // 存放响应内容主体的类型映射
 
     static HTTP_SET GET(const std::string &);
     static std::string RESPONSE(const HTTP_SET&);
