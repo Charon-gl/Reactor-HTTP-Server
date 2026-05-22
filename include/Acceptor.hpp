@@ -5,20 +5,24 @@
 #include <unistd.h>
 #include <functional>
 #include <cstring>
+#include <memory>
 #include "EventLoop.hpp"
 #include "TCPConnection.hpp"
+#include "Channel.hpp"
 
 class Acceptor
 {
 private:
-    int lfd;
+    std::unique_ptr<Channel> lfd;
     sockaddr_in addr;
     EventLoop *eventloop;
-    Acceptor(uint16_t, EventLoop*);
+    Acceptor(EventLoop*);
     std::function<void(int)> add_client_callback;
 
 public:
-    static Acceptor& instance(uint16_t, EventLoop*);
+    static Acceptor& instance(EventLoop*);
+
+    int init_listen_fd(uint16_t);
 
     int get_lfd() const;
     void accept_fd();

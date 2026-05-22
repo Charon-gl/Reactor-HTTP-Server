@@ -3,8 +3,8 @@
 
 int main()
 {
-    Server s;
-    s.run();
+    Server *s = &Server::instance();
+    s->run(8888);
 
     return 0;
 }

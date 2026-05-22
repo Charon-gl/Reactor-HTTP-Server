@@ -16,27 +16,29 @@
 class Server
 {
 private:
-    static Server server;
-
     uint16_t port;
     EventLoop *eventloop;
     Acceptor *acceptor;
     std::unordered_map<int, std::unique_ptr<TCPConnection>> clients;
-    Server(uint16_t);
+    
+    Server();
+
+    void set_port(u_int16_t);
+    void create();
 
     void add_client(int);
-    void del_client(int);
+    void del_client(int, int);
+    void del_all(int);
 
 public:
     static Server &instance();
-    void create();
-    void run();
+    void run(uint16_t);
     
     Server(Server &&) = delete;
     Server(const Server &) = delete;
     Server &operator=(Server &&) = delete;
     Server &operator=(const Server &) = delete;
 
-    ~Server();
+    ~Server() = default;
 };
 

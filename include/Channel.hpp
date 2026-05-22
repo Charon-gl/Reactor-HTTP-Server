@@ -15,23 +15,29 @@ private:
     uint32_t events;
     EventLoop *eventloop;
     
-    std::function<void()> read_callback;
-    std::function<void()> write_callback;
-    std::function<void()> error_callback;
+    std::function<int()> read_callback;
+    std::function<int()> write_callback;
+
+    std::function<void(int)> disconnect_callback;
+
+    
     void update();
     bool writing_enabled;
-
-public:
-    Channel(int, EventLoop*);
+    
+    public:
+    Channel(int, EventLoop *);
     
     Channel(Channel &&);
     Channel &operator=(Channel &&);
-
-    void set_read_callback(std::function<void()>);
-    void set_write_callback(std::function<void()>);
-    void set_error_callback(std::function<void()>);
-
+    
+    void set_read_callback(std::function<int()>);
+    void set_write_callback(std::function<int()>);
+    
+    void set_disconnect_callback(std::function<void(int)>);
+    
     void event_handle(uint32_t);
+    
+    void do_close(int);
 
     bool enable_reading();
     bool enable_writing();
