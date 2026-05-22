@@ -67,7 +67,4 @@ void Acceptor::accept_fd()
     add_client_callback(cfd);
 }
 
-void Acceptor::set_add_client(std::function<void(int)> _cb)
-{
-    add_client_callback = std::move(_cb);
-}
+void Acceptor::set_add_client(std::function<void(int)> _cb) { add_client_callback = std::move(_cb); }

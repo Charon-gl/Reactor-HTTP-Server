@@ -13,19 +13,16 @@ class Channel
 private:
     int fd;
     uint32_t events;
-    EventLoop *eventloop;
     
     std::function<int()> read_callback;
     std::function<int()> write_callback;
+    std::function<void(Channel*)> update_events;
+    std::function<void(int)> disconnect_all_callback;
 
-    std::function<void(int)> disconnect_callback;
-
-    
-    void update();
     bool writing_enabled;
     
-    public:
-    Channel(int, EventLoop *);
+public:
+    Channel(int);
     
     Channel(Channel &&);
     Channel &operator=(Channel &&);
@@ -34,10 +31,10 @@ private:
     void set_write_callback(std::function<int()>);
     
     void set_disconnect_callback(std::function<void(int)>);
-    
-    void event_handle(uint32_t);
-    
-    void do_close(int);
+    void set_update_events(std::function<void(Channel *)>);
+
+    int event_handle(uint32_t);
+    std::function<void(int)> disconnect_callback;
 
     bool enable_reading();
     bool enable_writing();

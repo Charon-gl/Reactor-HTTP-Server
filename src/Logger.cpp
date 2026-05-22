@@ -1,9 +1,9 @@
 #include "Logger.hpp"
 
-void Logger::add_log(char* err_str, int _errno, int _fd = -1, int err_type = 0)
+void Logger::add_log(int _fd = -1, char* err_str, int err_type = 0)
 {
     if(err_type == 0)
-        std::cout << _fd << err_str << std::endl;
+        std::cout << "连接" << _fd << ": " << err_str << std::endl;
     else
-        std::cout << err_type << ": " << err_str << std::endl;
+        std::cout << "全局异常" << ": " << err_str << std::endl;
 }

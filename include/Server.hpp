@@ -8,10 +8,11 @@
 #include <sys/epoll.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <exception>
 #include "EventLoop.hpp"
 #include "Channel.hpp"
 #include "TCPConnection.hpp"
+#include "Logger.hpp"
+#include "err_to_string.hpp"
 
 class Server
 {

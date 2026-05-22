@@ -7,12 +7,12 @@
 #include <functional>
 #include "EventLoop.hpp"
 #include "Channel.hpp"
+#include "HTTP_Analysis.hpp"
 
 class TCPConnection
 {
 private:
     std::shared_ptr<Channel> channel;
-    EventLoop *eventloop;
     sockaddr_in addr;
     socklen_t *len;
     std::string recv_buf;
@@ -24,14 +24,14 @@ private:
     std::function<void(int, int)> disconnect_callback; // 绑定的是Server的del_client()
 
 public:
-    TCPConnection(int fd, EventLoop* _eventloop);
+    TCPConnection(int);
 
     int handle_reading();
     int handle_writing();
 
     void set_disconnect(std::function<void(int, int)>);
 
-    void pre_send(const std::string& data);     //将数据写入缓冲区，并注册写事件
+    void pre_send(const std::string&);     //将数据写入缓冲区，并注册写事件
 
     std::shared_ptr<Channel> get_channel() const;
     TCPConnection(TCPConnection &&) = delete;
@@ -39,5 +39,5 @@ public:
     TCPConnection &operator=(TCPConnection &&) = delete;
     TCPConnection &operator=(const TCPConnection &) = delete;
     
-    ~TCPConnection();
+    ~TCPConnection() = default;
 };

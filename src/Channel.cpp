@@ -1,7 +1,7 @@
 #include "Channel.hpp"
 
-Channel::Channel(int _fd, EventLoop* _eventLoop) 
-    : fd(_fd), events(EPOLLOUT | EPOLLET), eventloop(_eventLoop), writing_enabled(false) 
+Channel::Channel(int _fd) 
+    : fd(_fd), events(EPOLLOUT | EPOLLET), writing_enabled(false) 
 {
     int flag = fcntl(fd, F_GETFL);
     fcntl(fd, flag | O_NONBLOCK);
@@ -13,20 +13,22 @@ void Channel::set_write_callback(std::function<int()> _cb) { write_callback = st
 
 void Channel::set_disconnect_callback(std::function<void(int)> _cb) { disconnect_callback = std::move(_cb); }
 
-void Channel::do_close(int _errno) { disconnect_callback(_errno); }
+void Channel::set_update_events(std::function<void(Channel*)> _cb) { update_events = std::move(_cb); }
 
-void Channel::event_handle(uint32_t revents)
+int Channel::event_handle(uint32_t revents)
 {
     if(revents == 0)
-        return;
+        return 1;
     if(revents | EPOLLIN)
     {
         int ret = read_callback();
-        if(ret >= 0)
+        if(ret == 0)
         {
-            do_close(errno);
-            return;
+            disconnect_callback(errno);
+            return 0;
         }
+        else if(ret == -1)
+            return -1;
     }
     if(revents & (EPOLLERR || revents | EPOLLHUP || revents | EPOLLRDHUP))
     {
@@ -35,38 +37,41 @@ void Channel::event_handle(uint32_t revents)
         getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &len);
         if(err == 0)
             err = -1;   //表示未知错误
-        do_close(err);
-        return;
+        disconnect_callback(err);
+        return 0;
     }
     if (revents | EPOLLOUT)
     {
         int ret = write_callback();
-        if (ret >= 0)
+        if (ret == 0)
         {
-            do_close(errno);
-            return;
+            disconnect_callback(errno);
+            return 0;
         }
+        else if(ret == -1)
+            return -1;
     }
+    return 1;
 }
 
 bool Channel::enable_reading()
 {
     events |= EPOLLIN;
-    update();
+    update_events(this);
     return true;
 }
 
 bool Channel::enable_writing()
 {
     events |= EPOLLOUT;
-    update();
+    update_events(this);
     return true;
 }
 
 bool Channel::disbale_writing()
 {
     events |= ~EPOLLOUT;
-    update();
+    update_events(this);
     return true;
 }
 
@@ -77,24 +82,19 @@ void Channel::set_writing_enabled(bool choice) { writing_enabled = choice; }
 bool Channel::enable_error()
 {
     events |= EPOLLERR;
-    update();
+    update_events(this);
     return true;
 }
 
 bool Channel::clear_events()
 {
     events = 0;
-    update();
+    update_events(this);
     return true;
 }
 
 int Channel::get_fd() const { return fd; }
 uint32_t Channel::get_events() const { return events; }
-
-void Channel::update()
-{
-    eventloop->update_Channel(this);
-}
 
 Channel::~Channel()
 {

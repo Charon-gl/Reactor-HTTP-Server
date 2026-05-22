@@ -10,14 +10,15 @@ void Server::add_client(int fd)
 
 void Server::del_client(int fd, int _errno)
 {
-    //记录日志 -1表示未知错误
-    
+    Logger::add_log(err_to_string(_errno), fd);
     clients.erase(fd);
+    eventloop->del_channel(fd);
 }
 
 void Server::del_all(int _errno)
 {
-    for(auto& i : clients)
+    Logger::add_log(err_to_string(_errno), -1, -1);     //最后一个-1表示全局错误
+    for (auto &i : clients)
         clients.erase(i.first);
 }
 

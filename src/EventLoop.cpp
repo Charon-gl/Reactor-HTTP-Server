@@ -24,13 +24,12 @@ bool EventLoop::init()
             epoll_ctl(epfd, EPOLL_CTL_MOD, lfd, &ev);
         if (res == Err_Manager::Action_Callback::CLOSE_FD)
         {
-            channels[lfd]->do_close(errno);
+            channels[lfd]->disconnect_callback(errno);
             return;
         }
         if (res == Err_Manager::Action_Callback::CLOSE_ALL)
         {
-            for (auto &i : channels)
-                i.second->do_close(errno);
+            call_close_all(errno);
             return;
         }
     }
@@ -55,8 +54,7 @@ void EventLoop::loop()
                 continue;
             if(res == Err_Manager::Action_Callback::CLOSE_ALL)
             {
-                for (auto &i : channels)
-                    i.second->do_close(errno);
+                call_close_all(errno);
                 return;
             }
         }
@@ -65,7 +63,11 @@ void EventLoop::loop()
             if(evs[i].data.fd == acceptor->get_lfd())
                 acceptor->accept_fd();
             else
-                channels[evs[i].data.fd]->event_handle(evs[i].events);
+            {
+                int res = channels[evs[i].data.fd]->event_handle(evs[i].events);
+                if(res == -1)
+                    call_close_all(errno);
+            }
         }
     }
 }
@@ -88,7 +90,7 @@ void EventLoop::update_Channel(Channel* ch)
             epoll_ctl(epfd, EPOLL_CTL_MOD, fd, &ev);
         if(res == Err_Manager::Action_Callback::CLOSE_FD)
         {
-            ch->do_close(errno);
+            ch->disconnect_callback(errno);
             return;
         }
         if(res == Err_Manager::Action_Callback::CLOSE_ALL)
@@ -119,17 +121,19 @@ void EventLoop::add_new_channel(std::shared_ptr<Channel> _ptr)
             epoll_ctl(epfd, EPOLL_CTL_MOD, fd, &ev);
         if (res == Err_Manager::Action_Callback::CLOSE_FD)
         {
-            channels[fd]->do_close(errno);
+            channels[fd]->disconnect_callback(errno);
             return;
         }
         if (res == Err_Manager::Action_Callback::CLOSE_ALL)
         {
-            for (auto &i : channels)
-                i.second->do_close(errno);
+            call_close_all(errno);
             return;
         }
     }
-    channels.emplace(std::pair<int, std::shared_ptr<Channel>>(fd, _ptr));
+    auto it = channels.emplace(std::pair<int, std::shared_ptr<Channel>>(fd, _ptr));
+    it.first->second->set_update_events([this](Channel *ch){ 
+        this->update_Channel(ch); 
+    });
 }
 
 void EventLoop::del_channel(int fd)
@@ -144,7 +148,7 @@ void EventLoop::del_channel(int fd)
             epoll_ctl(epfd, EPOLL_CTL_MOD, fd, NULL);
         if (res == Err_Manager::Action_Callback::CLOSE_FD)
         {
-            channels[fd]->do_close(errno);
+            channels[fd]->disconnect_callback(errno);
             return;
         }
         if (res == Err_Manager::Action_Callback::CLOSE_ALL)
