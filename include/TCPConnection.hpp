@@ -3,11 +3,12 @@
 #include <iostream>
 #include <memory>
 #include <string>
+#include <cstring>
 #include <errno.h>
 #include <functional>
-#include "EventLoop.hpp"
 #include "Channel.hpp"
 #include "HTTP_Analysis.hpp"
+#include "Err_Manager.hpp"
 
 class TCPConnection
 {
@@ -17,14 +18,15 @@ private:
     socklen_t *len;
     std::string recv_buf;
     std::string write_buf;
-    int write_buf_len;
-    int pre_pos;
+    size_t write_buf_len;
+    size_t pre_pos;
     bool set_write_listen;
+    bool write_shutdown;
 
     std::function<void(int, int)> disconnect_callback; // 绑定的是Server的del_client()
 
 public:
-    TCPConnection(int);
+    TCPConnection(int, std::function<void(std::shared_ptr<Channel>&)>);
 
     int handle_reading();
     int handle_writing();
@@ -39,5 +41,5 @@ public:
     TCPConnection &operator=(TCPConnection &&) = delete;
     TCPConnection &operator=(const TCPConnection &) = delete;
     
-    ~TCPConnection() = default;
+    ~TCPConnection();
 };

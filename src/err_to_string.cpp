@@ -1,6 +1,6 @@
 #include "err_to_string.hpp"
 
-char* err_to_string(int _errno)
+const char* err_to_string(int _errno)
 {
     if(_errno == EINTR)
         return "系统中断";

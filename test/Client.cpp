@@ -10,7 +10,7 @@ void Client::run()
         throw std::runtime_error("Socket failed");
     }
     addr.sin_family = AF_INET;
-    inet_pton(AF_INET, "192.168.88.130", &addr.sin_addr.s_addr);
+    inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr.s_addr);
     addr.sin_port = htons(host_port);
 
     int ret = connect(fd, (sockaddr *)&addr, sizeof(addr));
@@ -19,33 +19,42 @@ void Client::run()
         throw std::runtime_error("Connect failed");
     }
 
-    while (1)
+
+    std::string send_buf = "GET /nothing.txt HTTP/1.0\r\n\r\n";
+    
+    ret = send(fd, send_buf.data(), send_buf.size(), 0);
+    if (ret == -1)
     {
-        char buf[1024];
-        snprintf(buf, sizeof(buf), "Hello Server");
-        ret = send(fd, buf, strlen(buf), 0);
-        if (ret == -1)
+        std::cerr << "Send failed" << std::endl;
+    }
+    std::cout << "I say: " << send_buf << std::endl;
+    std::string recv_buf;
+    while(1)
+    {
+        char tmp[10];
+        ret = recv(fd, tmp, sizeof(tmp), 0);
+        if(ret > 0)
         {
-            std::cerr << "Send failed" << std::endl;
-            continue;
+            recv_buf += tmp;
         }
-        std::cout << "I say: " << buf << std::endl;
-        ret = recv(fd, buf, sizeof(buf) - 1, 0);
-        if (ret == 0)
+        else if (ret == 0)
         {
             std::cout << "Server disconnected..." << std::endl;
-            return;
+            break;
         }
         else if (ret == -1)
         {
-            std::cerr << "Recive message failed" << std::endl;
-        }
-        else
-        {
-            buf[ret] = '\0';
-            std::cout << "Server say: " << buf << std::endl;
+            if(errno == EAGAIN || errno == EWOULDBLOCK)
+                break;
+            else
+            {
+                std::cerr << "recv failed" << std::endl;
+                return;
+            }
         }
     }
+    recv_buf[recv_buf.size()] = '\0';
+    std::cout << "Server say: " << recv_buf << std::endl;
 }
 
 Client::~Client()

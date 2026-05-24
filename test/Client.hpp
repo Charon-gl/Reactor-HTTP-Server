@@ -4,6 +4,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <cstring>
+#include <string>
 
 class Client
 {

@@ -1,8 +1,13 @@
 #include "Server.hpp"
 
+Server::Server()
+    : port(0), eventloop(&EventLoop::instance()), acceptor(nullptr) {}
+
 void Server::add_client(int fd)
 {
-    clients.emplace(std::pair<int, std::unique_ptr<TCPConnection>>(fd, std::make_unique<TCPConnection>(fd, eventloop)));
+    clients.emplace(std::pair<int, std::unique_ptr<TCPConnection>>(fd, std::make_unique<TCPConnection>(fd, [this](std::shared_ptr<Channel> new_channel){ 
+        this->eventloop->add_new_channel(new_channel); 
+    })));
     clients[fd]->set_disconnect([this](int _fd, int _errno) {
         this->del_client(_fd, _errno); 
     });
@@ -11,15 +16,14 @@ void Server::add_client(int fd)
 void Server::del_client(int fd, int _errno)
 {
     Logger::add_log(err_to_string(_errno), fd);
-    clients.erase(fd);
     eventloop->del_channel(fd);
+    clients.erase(fd);
 }
 
 void Server::del_all(int _errno)
 {
     Logger::add_log(err_to_string(_errno), -1, -1);     //最后一个-1表示全局错误
-    for (auto &i : clients)
-        clients.erase(i.first);
+    clients.clear();
 }
 
 Server &Server::instance()
@@ -30,26 +34,39 @@ Server &Server::instance()
 
 void Server::set_port(uint16_t _port) { port = _port; }
 
-void Server::create()
+bool Server::create()
 {
     acceptor = &Acceptor::instance(eventloop);
-    eventloop->set_acceptor(acceptor);
-    eventloop->set_call_close_all([this](int _errno) {
-        this->del_all(_errno);
-    });
     int ret = acceptor->init_listen_fd(port);
-    if(ret == -1) { exit(1); }  //要释放所有资源再结束
+    if(ret == -1)
+    {
+        Logger::add_log("服务器初始化： 监听套接字初始化失败", -1);
+        return false;
+    }
+    eventloop->set_acceptor(acceptor);  //先将acceptor给到eventloop再创建epoll实例
+    bool res = eventloop->init();
+    if(!res)
+    {
+        Logger::add_log("服务器初始化： epoll实例创建失败", -1);
+        return false;
+    }
+
+    //绑定回调
     acceptor->set_add_client([this](int cfd) { 
         this->add_client(cfd); 
     });
+    eventloop->set_call_close_all([this](int _errno) {
+        this->del_all(_errno);
+    });
+    return true;
 }
 
-void Server::run(uint16_t _port) 
+bool Server::run(uint16_t _port) 
 {
-    set_port(port);
-    create();
-    eventloop->loop(); 
+    set_port(_port);
+    bool ret = create();
+    if(!ret)
+        return false;
+    eventloop->loop();
+    return true;
 }
-
-Server::Server() 
-    : port(0), eventloop(&EventLoop::instance()), acceptor(nullptr) {}

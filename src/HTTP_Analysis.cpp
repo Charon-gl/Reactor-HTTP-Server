@@ -15,34 +15,44 @@ HTTP_Analysis::HTTP_SET HTTP_Analysis::content_type = {
     {"json", "application/json"}
 };
 
-HTTP_Analysis::HTTP_SET HTTP_Analysis::GET(const std::string &request)
+std::string HTTP_Analysis::getline(std::string& data)
+{
+    int pos = data.find("\r\n");
+    std::string line = data.substr(0, pos);
+    data = data.substr(pos + 2, data.size() - pos - 1);
+    return line;
+}            
+
+HTTP_Analysis::HTTP_SET HTTP_Analysis::GET(std::string &request)
 {
     HTTP_SET new_request;
-    std::istringstream req(request);    //将request转换成输入流,再用getline读取一整行
     std::string tmp;
+    int ch = strlen("\r\n");
+    // 请求行
+    tmp = getline(request); //读取一整行，去除\r\n
     
-    //请求行
-    std::getline(req, tmp);
     int pos = tmp.find(' ');
     new_request.emplace(K_V("method", tmp.substr(0, pos)));
-
     tmp = tmp.substr(pos + 1, tmp.size() - pos);
+    
     pos = tmp.find(' ');
     new_request.emplace(K_V("url", tmp.substr(0, pos)));
-
     tmp = tmp.substr(pos + 1, tmp.size() - pos);
+    
     pos = tmp.find(' ');
     new_request.emplace(K_V("version", tmp.substr(0, pos)));
-
+    
+    getline(request);   //去除请求行和首部行的"\r\n"
+    
     //首部行
     // 定位到' : ',然后把前面的内容作为键，后面的内容作为值
-    while(std::getline(req, tmp))
+    while(1)
     {
-        if(tmp == "\r\n")
-            break;
+        tmp = getline(request);
         pos = tmp.find(':');
+        if(pos == -1)
+            break;
         new_request.emplace(K_V(tmp.substr(0, pos), tmp.substr(pos + 1, tmp.size() - pos)));
-        tmp.clear();
     }
     return new_request;
 }
@@ -50,7 +60,7 @@ HTTP_Analysis::HTTP_SET HTTP_Analysis::GET(const std::string &request)
 std::string HTTP_Analysis::RESPONSE(const HTTP_SET& request)
 {
     //1.url资源存在 2.资源不存在
-    auto URL = "/home/admin/www" + request.find("url")->second;     //可以再迭代
+    auto URL = "/home/charon/www" + request.find("url")->second;     //可以再迭代
     if(std::filesystem::exists(URL) && std::filesystem::is_regular_file(URL))
     {
         std::ifstream ifs(URL, std::ios::binary | std::ios::in);    //消息主体必须传二进制
@@ -68,7 +78,6 @@ std::string HTTP_Analysis::RESPONSE(const HTTP_SET& request)
         while (std::getline(ifs, tmp))
         {
             _response += tmp;
-            tmp.clear();
         }
         ifs.close();
         return _response;
@@ -84,4 +93,4 @@ std::string HTTP_Analysis::RESPONSE(const HTTP_SET& request)
     return _response;
 }
 
-std::string HTTP_Analysis::package(const std::string& request) { return RESPONSE(std::move(GET(request))); }
+std::string HTTP_Analysis::package(std::string& request) { return RESPONSE(std::move(GET(request))); }

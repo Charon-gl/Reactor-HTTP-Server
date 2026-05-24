@@ -1,6 +1,6 @@
 #include "Logger.hpp"
 
-void Logger::add_log(int _fd = -1, char* err_str, int err_type = 0)
+void Logger::add_log(const char* err_str, int _fd, int err_type)
 {
     if(err_type == 0)
         std::cout << "连接" << _fd << ": " << err_str << std::endl;

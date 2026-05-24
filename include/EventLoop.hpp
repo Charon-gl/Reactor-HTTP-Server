@@ -6,34 +6,34 @@
 #include <memory>
 #include <sys/epoll.h>
 #include "Err_Manager.hpp"
-#include "Acceptor.hpp"
 #include "Channel.hpp"
 
+class Acceptor;
 class EventLoop
 {
 private:
     static EventLoop eventloop;
 
-    int epfd;
+    std::unique_ptr<Channel> epfd;
     Acceptor *acceptor;
     std::vector<epoll_event> evs;
     std::unordered_map<int, std::shared_ptr<Channel>> channels;
 
     EventLoop();
+    
+public:
+    static EventLoop &instance();
     bool init();
     
-    public:
-    static EventLoop &instance();
-    
-    void set_acceptor(Acceptor *);
+    void set_acceptor(Acceptor *&);
     
     void loop();
     
     int get_epfd() const;
     
-    void update_Channel(Channel *);
+    void update_Channel(Channel *&);
     
-    void add_new_channel(std::shared_ptr<Channel>);
+    void add_new_channel(const std::shared_ptr<Channel>&);
     void del_channel(int);
     
     std::function<void(int)> call_close_all;

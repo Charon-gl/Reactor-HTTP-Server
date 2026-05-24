@@ -1,10 +1,10 @@
 #include "Channel.hpp"
 
 Channel::Channel(int _fd) 
-    : fd(_fd), events(EPOLLOUT | EPOLLET), writing_enabled(false) 
+    : fd(_fd), events(EPOLLIN | EPOLLET), writing_enabled(false) 
 {
     int flag = fcntl(fd, F_GETFL);
-    fcntl(fd, flag | O_NONBLOCK);
+    fcntl(fd, F_SETFL, flag | O_NONBLOCK);
 }
 
 void Channel::set_read_callback(std::function<int()> _cb) { read_callback = std::move(_cb); }
@@ -19,7 +19,8 @@ int Channel::event_handle(uint32_t revents)
 {
     if(revents == 0)
         return 1;
-    if(revents | EPOLLIN)
+    
+    if(revents & EPOLLIN)
     {
         int ret = read_callback();
         if(ret == 0)
@@ -28,21 +29,14 @@ int Channel::event_handle(uint32_t revents)
             return 0;
         }
         else if(ret == -1)
-            return -1;
+        return -1;
     }
-    if(revents & (EPOLLERR || revents | EPOLLHUP || revents | EPOLLRDHUP))
-    {
-        int err = 0;
-        socklen_t len = sizeof(err);
-        getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &len);
-        if(err == 0)
-            err = -1;   //表示未知错误
-        disconnect_callback(err);
-        return 0;
-    }
-    if (revents | EPOLLOUT)
+    
+    if (revents & EPOLLOUT)
     {
         int ret = write_callback();
+        if(ret > 0)
+            shutdown(fd, SHUT_WR);  //关闭写端(主动给客户端发送FIN，进入半关闭状态，但仍可以接收数据)
         if (ret == 0)
         {
             disconnect_callback(errno);
@@ -50,6 +44,17 @@ int Channel::event_handle(uint32_t revents)
         }
         else if(ret == -1)
             return -1;
+    }
+
+    if (revents & (EPOLLERR | EPOLLHUP | EPOLLRDHUP))
+    {
+        int err = 0;
+        socklen_t len = sizeof(err);
+        getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &len);
+        if (err == 0)
+            err = -1; // 表示未知错误
+        disconnect_callback(err);
+        return 0;
     }
     return 1;
 }
@@ -70,7 +75,7 @@ bool Channel::enable_writing()
 
 bool Channel::disbale_writing()
 {
-    events |= ~EPOLLOUT;
+    events &= ~EPOLLOUT;
     update_events(this);
     return true;
 }

@@ -4,7 +4,8 @@
 int main()
 {
     Server *s = &Server::instance();
-    s->run(8888);
+    
+    s->run(6666);
 
     return 0;
 }

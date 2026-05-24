@@ -9,7 +9,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include "EventLoop.hpp"
-#include "Channel.hpp"
+#include "Acceptor.hpp"
 #include "TCPConnection.hpp"
 #include "Logger.hpp"
 #include "err_to_string.hpp"
@@ -17,15 +17,15 @@
 class Server
 {
 private:
-    uint16_t port;
     EventLoop *eventloop;
+    uint16_t port;
     Acceptor *acceptor;
     std::unordered_map<int, std::unique_ptr<TCPConnection>> clients;
     
     Server();
 
     void set_port(u_int16_t);
-    void create();
+    bool create();
 
     void add_client(int);
     void del_client(int, int);
@@ -33,7 +33,7 @@ private:
 
 public:
     static Server &instance();
-    void run(uint16_t);
+    bool run(uint16_t);
     
     Server(Server &&) = delete;
     Server(const Server &) = delete;

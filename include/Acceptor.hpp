@@ -6,21 +6,21 @@
 #include <functional>
 #include <cstring>
 #include <memory>
-#include "EventLoop.hpp"
-#include "TCPConnection.hpp"
 #include "Channel.hpp"
+#include "Err_Manager.hpp"
 
+class EventLoop;
 class Acceptor
 {
 private:
-    std::unique_ptr<Channel> lfd;
+    std::shared_ptr<Channel> lfd;
     sockaddr_in addr;
     EventLoop *eventloop;
-    Acceptor(EventLoop*);
+    Acceptor(EventLoop*&);
     std::function<void(int)> add_client_callback;
 
 public:
-    static Acceptor& instance(EventLoop*);
+    static Acceptor& instance(EventLoop*&);
 
     int init_listen_fd(uint16_t);
 
@@ -33,5 +33,5 @@ public:
     Acceptor(const Acceptor &) = delete;
     Acceptor &operator=(const Acceptor &) = delete;
 
-    ~Acceptor();
+    ~Acceptor() = default;
 };
