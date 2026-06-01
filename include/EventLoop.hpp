@@ -41,8 +41,6 @@ public:
     std::function<void(int)> call_close_all;
     void set_call_close_all(std::function<void(int)>);
 
-    void run_in_loop(std::function<void(int)>, int);
-
     EventLoop(EventLoop &&) = delete;
     EventLoop &operator=(EventLoop &&) = delete;
     EventLoop(const EventLoop &) = delete;

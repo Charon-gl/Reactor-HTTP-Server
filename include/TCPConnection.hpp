@@ -10,6 +10,7 @@
 #include "HTTP_Analysis.hpp"
 #include "Err_Manager.hpp"
 
+#define MAX_BUF_SIZE 1024
 class TCPConnection
 {
 private:

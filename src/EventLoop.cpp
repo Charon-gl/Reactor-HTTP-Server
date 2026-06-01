@@ -197,9 +197,3 @@ void EventLoop::del_channel(int fd)
 }
 
 void EventLoop::set_call_close_all(std::function<void(int)> _cb) { call_close_all = std::move(_cb); }
-
-void EventLoop::run_in_loop(std::function<void(int)> _stop, int _errno)
-{
-    is_stop = true;
-    _stop(_errno);
-}

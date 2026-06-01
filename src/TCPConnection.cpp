@@ -12,8 +12,8 @@ TCPConnection::TCPConnection(int fd, std::function<void(std::shared_ptr<Channel>
     channel->set_disconnect_callback([this](int _errno) { 
         disconnect_callback(channel->get_fd(), _errno); 
     });
-    recv_buf.resize(1024);
-    write_buf.resize(1024);
+    recv_buf.resize(MAX_BUF_SIZE);
+    write_buf.resize(MAX_BUF_SIZE);
 
     //开启监听
     channel->enable_reading();
@@ -23,8 +23,8 @@ int TCPConnection::handle_reading()
 {
     while (1)
     {
-        if(recv_buf.size() < 1024)
-            recv_buf.resize(1024);
+        if(recv_buf.size() < MAX_BUF_SIZE)
+            recv_buf.resize(MAX_BUF_SIZE);
         int len = recv(channel->get_fd(), recv_buf.data(), recv_buf.size(), 0);
         if (len < 0)
         {
@@ -43,7 +43,6 @@ int TCPConnection::handle_reading()
             return 0;   //收到FIN报文，正常关闭
         recv_buf += '\0';
     }
-    //errno = 0;    //需要保证线程安全
     if (!write_shutdown) // 写端关闭后，不再受理任何请求
         pre_send(HTTP_Analysis::package(recv_buf));
     return -100;    //无特殊意义，仅表示读回调正常完成
@@ -75,7 +74,6 @@ int TCPConnection::handle_writing()
                 return -1;
         }
     }
-    //errno = 0;     // 单线程测试下可以，多线程下要改
     channel->disbale_writing(); // 发送完数据就关闭写监听
     write_shutdown = true;
     return -100; //表示写缓冲区的内容已全部发送
@@ -95,7 +93,8 @@ void TCPConnection::pre_send(const std::string& data)
 std::shared_ptr<Channel> TCPConnection::get_channel() const { return channel; }
 
 TCPConnection::~TCPConnection()
-{//直接清空该连接的事件回调，避免段错误
+{
+    // 直接清空该连接的事件回调，避免段错误
     channel->set_read_callback(nullptr);
     channel->set_write_callback(nullptr);
     channel->set_disconnect_callback(nullptr);

@@ -39,8 +39,7 @@ public:
     bool disbale_writing();
     bool is_writing_enabled() const;
     void set_writing_enabled(bool);
-    bool enable_error();
-    bool clear_events();
+    //bool clear_events();
     
     int get_fd() const;
     u_int32_t get_events() const;

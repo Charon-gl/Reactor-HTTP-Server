@@ -5,7 +5,7 @@
 int main()
 {
     signal(SIGPIPE, SIG_IGN); // 忽略 SIGPIPE
-    Server *s = &Server::instance();
+    Server *s = &Server::instance("/home/charon/Reactor_Server/Log/logger");
     
     s->run(6666);
 

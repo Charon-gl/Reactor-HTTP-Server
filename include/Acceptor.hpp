@@ -9,6 +9,8 @@
 #include "Channel.hpp"
 #include "Err_Manager.hpp"
 
+#define MAX_LISTEN_NUM 1024
+
 class EventLoop;
 class Acceptor
 {

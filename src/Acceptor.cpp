@@ -28,7 +28,7 @@ int Acceptor::init_listen_fd(uint16_t port)
         close(fd);
         return -1;
     }
-    ret = listen(fd, 1024);
+    ret = listen(fd, MAX_LISTEN_NUM);
     if (ret == -1)
     {
         //std::cerr << "Listen failed" << std::endl;

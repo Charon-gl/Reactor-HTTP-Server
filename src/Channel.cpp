@@ -91,19 +91,12 @@ bool Channel::is_writing_enabled() const { return writing_enabled; }
 
 void Channel::set_writing_enabled(bool choice) { writing_enabled = choice; }
 
-bool Channel::enable_error()
-{
-    events |= EPOLLERR;
-    update_events(this);
-    return true;
-}
-
-bool Channel::clear_events()
+/*bool Channel::clear_events()
 {
     events = 0;
     update_events(this);
     return true;
-}
+}*/
 
 int Channel::get_fd() const { return fd; }
 uint32_t Channel::get_events() const { return events; }

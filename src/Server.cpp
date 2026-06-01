@@ -1,7 +1,7 @@
 #include "Server.hpp"
 
-Server::Server()
-    : port(0), eventloop(&EventLoop::instance()), acceptor(nullptr) {}
+Server::Server(const std::string& _log_file_)
+    : port(0), eventloop(&EventLoop::instance()), acceptor(nullptr), logger(&Logger::instance(_log_file_)) {}
 
 void Server::add_client(int fd)
 {
@@ -15,15 +15,19 @@ void Server::add_client(int fd)
 
 void Server::del_client(int fd, int _errno)
 {
-    Logger::add_log(err_to_string(_errno), _errno, fd);
+    const char *log_str = err_to_string(_errno);
+    if (_errno == 0)
+        logger->add_log(Logger::LOG_RANK::INFO, log_str, _errno, fd);
+    else
+        logger->add_log(Logger::LOG_RANK::ERROR, log_str, _errno, fd);
     eventloop->del_channel(fd);
     clients.erase(fd);
 }
 
 void Server::del_all(int _errno)
 {
-    Logger::add_log(err_to_string(_errno), _errno, -1, -1);     //最后一个-1表示全局错误
-    while(!clients.empty())     //逐个删除，沿用已有的释放链
+    logger->add_log(Logger::LOG_RANK::FATAL, err_to_string(_errno), _errno);
+    while (!clients.empty()) // 逐个删除，沿用已有的释放链
     {
         auto it = clients.begin();
         int _fd = it->second->get_channel()->get_fd();
@@ -31,9 +35,9 @@ void Server::del_all(int _errno)
     }
 }
 
-Server &Server::instance()
+Server &Server::instance(const std::string &_log_file_)
 {
-    static Server server;
+    static Server server(_log_file_);
     return server;
 }
 
@@ -45,14 +49,14 @@ bool Server::create()
     int ret = acceptor->init_listen_fd(port);
     if(ret == -1)
     {
-        Logger::add_log("服务器初始化： 监听套接字初始化失败", -1);
+        logger->add_log(Logger::LOG_RANK::FATAL, "服务器初始化： 监听套接字初始化失败", -1);
         return false;
     }
     eventloop->set_acceptor(acceptor);  //先将acceptor给到eventloop再创建epoll实例
     bool res = eventloop->init();
     if(!res)
     {
-        Logger::add_log("服务器初始化： epoll实例创建失败", -1);
+        logger->add_log(Logger::LOG_RANK::FATAL, "服务器初始化： epoll实例创建失败", -1);
         return false;
     }
 
