@@ -69,7 +69,7 @@ std::string HTTP_Analysis::RESPONSE(const HTTP_SET& request)
         std::string file_type = URL.substr(pos + 1, URL.size() - pos);  //跳过'.'读取
         std::string _response = request.find("version")->second + " 200" + " OK\r\n" 
                                 + "Content-Type: " + content_type.find(file_type)->second + "\r\n" 
-                                + "Content-Length: " + std::to_string(std::filesystem::file_size(URL)) + "\r\n" 
+                                + "Content-Length: " + std::to_string(std::filesystem::file_size(URL) - 1) + "\r\n" //减一是因为file_size可能计算了'\0' 
                                 + "Connection: close\r\n" 
                                 + "\r\n";
 

@@ -29,32 +29,39 @@ int Channel::event_handle(uint32_t revents)
             return 0;
         }
         else if(ret == -1)
-        return -1;
+            return -1;
     }
     
     if (revents & EPOLLOUT)
     {
-        int ret = write_callback();
-        if(ret > 0)
-            shutdown(fd, SHUT_WR);  //关闭写端(主动给客户端发送FIN，进入半关闭状态，但仍可以接收数据)
-        if (ret == 0)
+        if(write_callback)
         {
-            disconnect_callback(errno);
-            return 0;
+            int ret = write_callback();
+            if(ret > 1)
+                shutdown(fd, SHUT_WR);  //关闭写端(主动给客户端发送FIN，进入半关闭状态，但仍可以接收数据)
+            //如果返回等于1，表示一次发不完，因此不能先关闭写端，要等待下一次写事件
+            else if (ret == 0)
+            {
+                disconnect_callback(errno);
+                return 0;
+            }
+            else if(ret == -1)
+                return -1;
         }
-        else if(ret == -1)
-            return -1;
     }
 
     if (revents & (EPOLLERR | EPOLLHUP | EPOLLRDHUP))
     {
-        int err = 0;
-        socklen_t len = sizeof(err);
-        getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &len);
-        if (err == 0)
-            err = -1; // 表示未知错误
-        disconnect_callback(err);
-        return 0;
+        if(disconnect_callback)
+        {
+            int err = 0;
+            socklen_t len = sizeof(err);
+            getsockopt(fd, SOL_SOCKET, SO_ERROR, &err, &len);
+            if (err == 0)
+                err = -1; // 表示未知错误
+            disconnect_callback(err);
+            return 0;
+        }
     }
     return 1;
 }

@@ -24,8 +24,8 @@ public:
 
     int init_listen_fd(uint16_t);
 
-    int get_lfd() const;
-    void accept_fd();
+    std::shared_ptr<Channel> get_lfd() const;
+    int accept_fd();
     void set_add_client(std::function<void(int)>);
 
     Acceptor(Acceptor &&) = delete;

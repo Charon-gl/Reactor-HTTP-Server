@@ -10,7 +10,7 @@ TCPConnection::TCPConnection(int fd, std::function<void(std::shared_ptr<Channel>
     channel->set_read_callback(std::bind(&TCPConnection::handle_reading, this));
     channel->set_write_callback(std::bind(&TCPConnection::handle_writing, this));
     channel->set_disconnect_callback([this](int _errno) { 
-        this->disconnect_callback(channel->get_fd(), _errno); 
+        disconnect_callback(channel->get_fd(), _errno); 
     });
     recv_buf.resize(1024);
     write_buf.resize(1024);
@@ -21,26 +21,29 @@ TCPConnection::TCPConnection(int fd, std::function<void(std::shared_ptr<Channel>
 
 int TCPConnection::handle_reading()
 {
-    while (errno != EAGAIN || errno != EWOULDBLOCK)
+    while (1)
     {
         if(recv_buf.size() < 1024)
             recv_buf.resize(1024);
         int len = recv(channel->get_fd(), recv_buf.data(), recv_buf.size(), 0);
-        if (len <= 0)
+        if (len < 0)
         {
             auto res = Err_Manager::err_judge(Err_Manager::Action_Type::READ_OR_WRITE, errno);
-            //if (res == Err_Manager::Action_Callback::IGNORE)  直接忽略
-            
+            if (res == Err_Manager::Action_Callback::IGNORE)
+                break;
             if (res == Err_Manager::Action_Callback::RETRY)
-            continue;
+                continue;
             if (res == Err_Manager::Action_Callback::CLOSE_FD)
-            return 0;
+                return 0;  //fd错误，非正常断开连接
             if (res == Err_Manager::Action_Callback::CLOSE_ALL)
-            return -1;
+                return -1;
         }
+        else if(len == 0)
+            return 0;   //收到FIN报文，正常关闭
         recv_buf += '\0';
     }
-    if(!write_shutdown)   //写端关闭后，不再受理任何请求
+    //errno = 0;    //需要保证线程安全
+    if (!write_shutdown) // 写端关闭后，不再受理任何请求
         pre_send(HTTP_Analysis::package(recv_buf));
     return 1;
 }
@@ -71,9 +74,10 @@ int TCPConnection::handle_writing()
                 return -1;
         }
     }
-    channel->disbale_writing();     //发送完数据就关闭写监听
+    //errno = 0;     // 单线程测试下可以，多线程下要改
+    channel->disbale_writing(); // 发送完数据就关闭写监听
     write_shutdown = true;
-    return 1;
+    return 100; //表示写缓冲区的内容已全部发送
 }
 
 void TCPConnection::set_disconnect(std::function<void(int, int)> _cb) { disconnect_callback = std::move(_cb); }
@@ -81,7 +85,7 @@ void TCPConnection::set_disconnect(std::function<void(int, int)> _cb) { disconne
 void TCPConnection::pre_send(const std::string& data)
 {
     pre_pos = 0;
-    memcpy(write_buf.data(), data.data(), data.size());
+    write_buf = data;
     write_buf_len = write_buf.size();
     if (!channel->is_writing_enabled())
         channel->enable_writing();
@@ -90,7 +94,7 @@ void TCPConnection::pre_send(const std::string& data)
 std::shared_ptr<Channel> TCPConnection::get_channel() const { return channel; }
 
 TCPConnection::~TCPConnection()
-{
+{//直接清空该连接的事件回调，避免段错误
     channel->set_read_callback(nullptr);
     channel->set_write_callback(nullptr);
     channel->set_disconnect_callback(nullptr);

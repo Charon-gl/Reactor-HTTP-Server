@@ -19,6 +19,9 @@ private:
     std::vector<epoll_event> evs;
     std::unordered_map<int, std::shared_ptr<Channel>> channels;
 
+    bool is_stop;
+    int _errno;
+
     EventLoop();
     
 public:
@@ -38,6 +41,8 @@ public:
     
     std::function<void(int)> call_close_all;
     void set_call_close_all(std::function<void(int)>);
+
+    void run_in_loop(std::function<void(int)>, int);
 
     EventLoop(EventLoop &&) = delete;
     EventLoop &operator=(EventLoop &&) = delete;
