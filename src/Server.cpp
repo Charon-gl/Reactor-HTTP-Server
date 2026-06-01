@@ -1,140 +1,81 @@
 #include "Server.hpp"
 
-void Server::init()
+Server::Server(const std::string& _log_file_)
+    : port(0), eventloop(&EventLoop::instance()), acceptor(nullptr), logger(&Logger::instance(_log_file_)) {}
+
+void Server::add_client(int fd)
 {
-    lfd = socket(AF_INET, SOCK_STREAM, 0);
-    if(lfd == -1)
+    clients.emplace(std::pair<int, std::unique_ptr<TCPConnection>>(fd, std::make_unique<TCPConnection>(fd, [this](std::shared_ptr<Channel> new_channel){ 
+        eventloop->add_new_channel(new_channel); 
+    })));
+    clients[fd]->set_disconnect([this](int _fd, int _errno) {
+        del_client(_fd, _errno); 
+    });
+}
+
+void Server::del_client(int fd, int _errno)
+{
+    const char *log_str = err_to_string(_errno);
+    if (_errno == 0)
+        logger->add_log(Logger::LOG_RANK::INFO, log_str, _errno, fd);
+    else
+        logger->add_log(Logger::LOG_RANK::ERROR, log_str, _errno, fd);
+    eventloop->del_channel(fd);
+    clients.erase(fd);
+}
+
+void Server::del_all(int _errno)
+{
+    logger->add_log(Logger::LOG_RANK::FATAL, err_to_string(_errno), _errno);
+    while (!clients.empty()) // 逐个删除，沿用已有的释放链
     {
-        throw std::runtime_error("Socket failed");
-    }
-    int flag = fcntl(lfd, F_GETFL);
-    fcntl(lfd, F_SETFL, flag | O_NONBLOCK);
-    
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = INADDR_ANY;
-    addr.sin_port = htons(8888);
-    int ret = bind(lfd, (sockaddr *)&addr, sizeof(addr));
-    if(ret == -1)
-    {
-        throw std::runtime_error("Bind failed");
-    }
-    ret = listen(lfd, 1024);
-    if(ret == -1)
-    {
-        throw std::runtime_error("Listen error");
+        auto it = clients.begin();
+        int _fd = it->second->get_channel()->get_fd();
+        del_client(_fd, _errno);
     }
 }
 
-void Server::run()
+Server &Server::instance(const std::string &_log_file_)
 {
-    epfd = epoll_create(1024);
-    //添加lfd到epfd
-    epoll_event ev;
-    ev.events = EPOLLIN | EPOLLET;
-    ev.data.fd = lfd;
+    static Server server(_log_file_);
+    return server;
+}
 
-    int ret = epoll_ctl(epfd, EPOLL_CTL_ADD, lfd, &ev);
+void Server::set_port(uint16_t _port) { port = _port; }
+
+bool Server::create()
+{
+    acceptor = &Acceptor::instance(eventloop);
+    int ret = acceptor->init_listen_fd(port);
     if(ret == -1)
     {
-        throw std::runtime_error("Add lfd into epoll failed");
+        logger->add_log(Logger::LOG_RANK::FATAL, "服务器初始化： 监听套接字初始化失败", -1);
+        return false;
+    }
+    eventloop->set_acceptor(acceptor);  //先将acceptor给到eventloop再创建epoll实例
+    bool res = eventloop->init();
+    if(!res)
+    {
+        logger->add_log(Logger::LOG_RANK::FATAL, "服务器初始化： epoll实例创建失败", -1);
+        return false;
     }
 
-    epoll_event evs[1024];
-    while (1)
-    {
-        int nums_fd = epoll_wait(epfd, evs, sizeof(evs) / sizeof(evs[0]), -1);
-        for (int i = 0; i < nums_fd; ++i)
-        {
-            int fd = evs[i].data.fd;
-            if(fd == lfd)
-            {
-                while(1)
-                {
-                    int cfd = accept(lfd, NULL, NULL);
-                    if(cfd == -1)
-                    {
-                        if(errno == EAGAIN)
-                            break;
-                        std::cerr << "Accept new client failed" << std::endl;
-                        continue;
-                    }
-                    ev.events = EPOLLIN | EPOLLET;
-                    ev.data.fd = cfd;
-                    int flag = fcntl(cfd, F_GETFL);
-                    fcntl(cfd, F_SETFL, flag | O_NONBLOCK);
-                    ret = epoll_ctl(epfd, EPOLL_CTL_ADD, cfd, &ev);
-                    if(ret == -1)
-                    {
-                        std::cerr << "Add cfd into epoll failed" << std::endl;
-                        close(cfd);
-                    }
-                    cfds.insert(cfd);
-                }
-            }
-            else
-            {
-                while(1)
-                {
-                    char buf[1024];
-                    int len = recv(fd, buf, sizeof(buf) - 1, 0);
-                    if(len <= 0)
-                    {
-                        if(len == -1)
-                        {
-                            if(errno == EAGAIN)
-                                break;
-                            std::cerr << "Recv from " << fd << " failed" << std::endl;
-                        }
-                        int del = epoll_ctl(epfd, EPOLL_CTL_DEL, fd, NULL);
-                        if(del == -1)
-                        {
-                            std::cerr << "Delete client from epoll failed" << std::endl;
-                            //还需其他处理
-                        }
-                        std::cout << "Client disconnected..." << std::endl;
-                        close(fd);
-                        cfds.erase(fd);
-                        break;
-                    }
-                    else 
-                    {
-                        buf[len] = '\0';
-                        std::cout << buf << std::endl;  //多线程要注意
-                        int sd = send(fd, buf, len, 0);
-                        if(sd == -1)
-                        {
-                            std::cerr << "Send failed" << std::endl;
-                            int del = epoll_ctl(epfd, EPOLL_CTL_DEL, fd, NULL);
-                            if (del == -1)
-                            {
-                                std::cerr << "Delete client from epoll failed" << std::endl;
-                                // 还需其他处理
-                            }
-                            std::cout << "Client disconnected..." << std::endl;
-                            cfds.erase(fd);
-                            close(fd);
-                        }
-                    }
-                }
-            }
-        }
-    }
+    //绑定回调
+    acceptor->set_add_client([this](int cfd) { 
+        this->add_client(cfd); 
+    });
+    eventloop->set_call_close_all([this](int _errno) {
+        this->del_all(_errno);
+    });
+    return true;
 }
 
-Server::Server() : lfd(-1), epfd(-1)
+bool Server::run(uint16_t _port) 
 {
-    init();
-}
-
-Server::~Server()
-{
-    for(auto& i : cfds)
-    {
-        if(i != -1)
-            close(i);
-    }
-    if(epfd != -1)
-        close(epfd);
-    if(lfd != -1)
-        close(lfd);
+    set_port(_port);
+    bool ret = create();
+    if(!ret)
+        return false;
+    eventloop->loop();
+    return true;
 }
