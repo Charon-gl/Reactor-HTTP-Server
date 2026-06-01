@@ -6,26 +6,29 @@
 #include <functional>
 #include <cstring>
 #include <memory>
-#include "EventLoop.hpp"
-#include "TCPConnection.hpp"
 #include "Channel.hpp"
+#include "Err_Manager.hpp"
 
+#define MAX_LISTEN_NUM 1024
+
+class EventLoop;
 class Acceptor
 {
 private:
-    std::unique_ptr<Channel> lfd;
+    std::shared_ptr<Channel> lfd;
     sockaddr_in addr;
     EventLoop *eventloop;
-    Acceptor(EventLoop*);
+    Acceptor(EventLoop*&);
     std::function<void(int)> add_client_callback;
+    int _errno;
 
 public:
-    static Acceptor& instance(EventLoop*);
+    static Acceptor& instance(EventLoop*&);
 
     int init_listen_fd(uint16_t);
 
-    int get_lfd() const;
-    void accept_fd();
+    std::shared_ptr<Channel> get_lfd() const;
+    int accept_fd();
     void set_add_client(std::function<void(int)>);
 
     Acceptor(Acceptor &&) = delete;
@@ -33,5 +36,5 @@ public:
     Acceptor(const Acceptor &) = delete;
     Acceptor &operator=(const Acceptor &) = delete;
 
-    ~Acceptor();
+    ~Acceptor() = default;
 };

@@ -1,4 +1,4 @@
 #include <iostream>
 #include <errno.h>
 
-char* err_to_string(int);
+const char* err_to_string(int);

@@ -8,31 +8,33 @@
 #include <sys/epoll.h>
 #include <errno.h>
 #include <fcntl.h>
-#include <exception>
 #include "EventLoop.hpp"
-#include "Channel.hpp"
+#include "Acceptor.hpp"
 #include "TCPConnection.hpp"
+#include "Logger.hpp"
+#include "err_to_string.hpp"
 
 class Server
 {
 private:
-    uint16_t port;
     EventLoop *eventloop;
+    uint16_t port;
     Acceptor *acceptor;
+    Logger *logger;
     std::unordered_map<int, std::unique_ptr<TCPConnection>> clients;
-    
-    Server();
+
+    Server(const std::string&);
 
     void set_port(u_int16_t);
-    void create();
+    bool create();
 
     void add_client(int);
     void del_client(int, int);
     void del_all(int);
 
 public:
-    static Server &instance();
-    void run(uint16_t);
+    static Server &instance(const std::string &_log_file_);
+    bool run(uint16_t);
     
     Server(Server &&) = delete;
     Server(const Server &) = delete;

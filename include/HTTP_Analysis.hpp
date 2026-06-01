@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <string>
+#include <cstring>
 #include <sstream>
 #include <unordered_map>
 #include <filesystem>
@@ -34,18 +35,19 @@ class HTTP_Analysis
 public:
     using HTTP_SET = std::unordered_map<std::string, std::string>;
     using K_V = std::pair<std::string, std::string>;
+
+    HTTP_Analysis(const HTTP_Analysis &) = delete;
+    HTTP_Analysis(HTTP_Analysis &&) = delete;
+
+    static std::string package(std::string &);
+
+    ~HTTP_Analysis() = default;
+
 private:
     HTTP_Analysis() = default;
     static HTTP_SET content_type;    // 存放响应内容主体的类型映射
 
-    static HTTP_SET GET(const std::string &);
+    static std::string getline(std::string &);
+    static HTTP_SET GET(std::string &);
     static std::string RESPONSE(const HTTP_SET&);
-
-public:
-    HTTP_Analysis(const HTTP_Analysis &) = delete;
-    HTTP_Analysis(HTTP_Analysis &&) = delete;
-
-    static std::string package(const std::string &);
-
-    ~HTTP_Analysis() = default;
 };
