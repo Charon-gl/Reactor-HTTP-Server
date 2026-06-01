@@ -2,7 +2,7 @@
 #include "EventLoop.hpp"
 
 Acceptor::Acceptor(EventLoop*& _eventloop) 
-    : eventloop(_eventloop) {}
+    : eventloop(_eventloop), _errno(0) {}
 
 Acceptor &Acceptor::instance(EventLoop*& _eventloop)
 {
@@ -55,9 +55,10 @@ int Acceptor::accept_fd()
         cfd = accept(lfd->get_fd(), (sockaddr *)&caddr, &len);
         if(cfd == -1) 
         {
-            auto res = Err_Manager::err_judge(Err_Manager::Action_Type::ACCEPT, errno);
+            _errno = errno;
+            auto res = Err_Manager::err_judge(Err_Manager::Action_Type::ACCEPT, _errno);
             if (res == Err_Manager::Action_Callback::IGNORE)
-                return 0;
+                return -100;
             if (res == Err_Manager::Action_Callback::RETRY)
                 continue;
             if (res == Err_Manager::Action_Callback::CLOSE_ALL)
@@ -67,7 +68,7 @@ int Acceptor::accept_fd()
     }
     if(cfd != -1)
         add_client_callback(cfd);
-    return 1;
+    return -100;
 }
 
 void Acceptor::set_add_client(std::function<void(int)> _cb) { add_client_callback = std::move(_cb); }

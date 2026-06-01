@@ -22,6 +22,7 @@ private:
     size_t pre_pos;
     bool set_write_listen;
     bool write_shutdown;
+    int _errno;
 
     std::function<void(int, int)> disconnect_callback; // 绑定的是Server的del_client()
 

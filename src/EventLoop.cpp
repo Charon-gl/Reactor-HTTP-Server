@@ -26,19 +26,20 @@ bool EventLoop::init()
         int ret = epoll_ctl(epfd->get_fd(), EPOLL_CTL_ADD, lfd, &ev);
         if(ret == -1)
         {
-            auto res = Err_Manager::err_judge(Err_Manager::Action_Type::EPOLL_WAIT, errno, lfd);
+            _errno = errno;
+            auto res = Err_Manager::err_judge(Err_Manager::Action_Type::EPOLL_WAIT, _errno, lfd);
             if (res == Err_Manager::Action_Callback::IGNORE)
                 return true;
             if (res == Err_Manager::Action_Callback::RETRY)
                 continue;
             if (res == Err_Manager::Action_Callback::CLOSE_FD)
             {
-                channels[lfd]->disconnect_callback(errno);
+                channels[lfd]->disconnect_callback(_errno);
                 return false;
             }
             if (res == Err_Manager::Action_Callback::CLOSE_ALL)
             {
-                call_close_all(errno);
+                call_close_all(_errno);
                 return false;
             }
         }
@@ -50,7 +51,7 @@ bool EventLoop::init()
 
 EventLoop& EventLoop::instance() { return eventloop; }
 
-EventLoop::EventLoop() : acceptor(nullptr), evs(std::vector<epoll_event>(1024)), is_stop(false) {}
+EventLoop::EventLoop() : acceptor(nullptr), evs(std::vector<epoll_event>(1024)), is_stop(false), _errno(0) {}
 
 void EventLoop::set_acceptor(Acceptor *&_acceptor) { acceptor = _acceptor; }
 
@@ -61,12 +62,13 @@ void EventLoop::loop()
         int nums_fd = epoll_wait(epfd->get_fd(), evs.data(), sizeof(evs) / sizeof(evs[0]), -1);
         if(nums_fd < 0)
         {
-            auto res = Err_Manager::err_judge(Err_Manager::Action_Type::EPOLL_WAIT, errno);
+            _errno = errno;
+            auto res = Err_Manager::err_judge(Err_Manager::Action_Type::EPOLL_WAIT, _errno);
             if(res == Err_Manager::Action_Callback::RETRY)
                 continue;
             if(res == Err_Manager::Action_Callback::CLOSE_ALL)
             {
-                call_close_all(errno);
+                call_close_all(_errno);
                 return;
             }
         }
@@ -77,12 +79,8 @@ void EventLoop::loop()
             else
             {*/
                 int res = channels[evs[i].data.fd]->event_handle(evs[i].events);
-                if(res == -1)
-                {
+                if(res == -1)   //表示发生了严重错误，需要关闭全站
                     is_stop = true;
-                    _errno = errno;
-                }
-            
         }
     }
     call_close_all(_errno);
@@ -102,20 +100,20 @@ void EventLoop::update_Channel(Channel*& ch)
         int ret = epoll_ctl(epfd->get_fd(), EPOLL_CTL_MOD, fd, &ev);
         if(ret == -1)
         {
-            auto res = Err_Manager::err_judge(Err_Manager::Action_Type::EPOLL_CTL, errno, fd);
+            _errno = errno;
+            auto res = Err_Manager::err_judge(Err_Manager::Action_Type::EPOLL_CTL, _errno, fd);
             if(res == Err_Manager::Action_Callback::IGNORE)
                 return;
             if(res == Err_Manager::Action_Callback::RETRY)
                 continue;
             if (res == Err_Manager::Action_Callback::CLOSE_FD)
             {
-                ch->disconnect_callback(errno);
+                ch->disconnect_callback(_errno);
                 return;
             }
             if(res == Err_Manager::Action_Callback::CLOSE_ALL)
             {
                 is_stop = true;
-                _errno = errno;
                 return;
             }
         }
@@ -138,20 +136,20 @@ void EventLoop::add_new_channel(const std::shared_ptr<Channel>& _ptr)
         int ret = epoll_ctl(epfd->get_fd(), EPOLL_CTL_ADD, fd, &ev);
         if (ret == -1)
         {
-            auto res = Err_Manager::err_judge(Err_Manager::Action_Type::EPOLL_CTL, errno, fd);
+            _errno = errno;
+            auto res = Err_Manager::err_judge(Err_Manager::Action_Type::EPOLL_CTL, _errno, fd);
             if (res == Err_Manager::Action_Callback::IGNORE)
                 return;
             if (res == Err_Manager::Action_Callback::RETRY)
                 continue;
             if (res == Err_Manager::Action_Callback::CLOSE_FD)
             {
-                channels[fd]->disconnect_callback(errno);
+                channels[fd]->disconnect_callback(_errno);
                 return;
             }
             if (res == Err_Manager::Action_Callback::CLOSE_ALL)
             {
                 is_stop = true;
-                _errno = errno;
                 return;
             }
         }
@@ -170,7 +168,8 @@ void EventLoop::del_channel(int fd)
         int ret = epoll_ctl(epfd->get_fd(), EPOLL_CTL_DEL, fd, NULL);
         if (ret == -1)
         {
-            auto res = Err_Manager::err_judge(Err_Manager::Action_Type::EPOLL_CTL, errno, fd);
+            _errno = errno;
+            auto res = Err_Manager::err_judge(Err_Manager::Action_Type::EPOLL_CTL, _errno, fd);
             if (res == Err_Manager::Action_Callback::IGNORE)
                 //主要是ENOENT,表示待删除fd不在epoll实例中，直接返回即可
                 return;
@@ -183,16 +182,12 @@ void EventLoop::del_channel(int fd)
                 if(test >= 0)   //epfd正常上班，待删除fd触发EINVAL
                     break;
                 else 
-                {
                     is_stop = true;
-                    _errno = errno;
-                }
                 return;
             }
             if (res == Err_Manager::Action_Callback::CLOSE_ALL)
             {
                 is_stop = true;
-                _errno = errno;
                 return;
             }
         }

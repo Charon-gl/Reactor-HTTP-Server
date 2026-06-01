@@ -18,9 +18,8 @@ private:
     Acceptor *acceptor;
     std::vector<epoll_event> evs;
     std::unordered_map<int, std::shared_ptr<Channel>> channels;
-
-    bool is_stop;
     int _errno;
+    bool is_stop;
 
     EventLoop();
     

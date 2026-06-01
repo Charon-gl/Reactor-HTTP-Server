@@ -15,14 +15,14 @@ void Server::add_client(int fd)
 
 void Server::del_client(int fd, int _errno)
 {
-    //Logger::add_log(err_to_string(_errno), _errno, fd);
+    Logger::add_log(err_to_string(_errno), _errno, fd);
     eventloop->del_channel(fd);
     clients.erase(fd);
 }
 
 void Server::del_all(int _errno)
 {
-    //Logger::add_log(err_to_string(_errno), _errno, -1, -1);     //最后一个-1表示全局错误
+    Logger::add_log(err_to_string(_errno), _errno, -1, -1);     //最后一个-1表示全局错误
     while(!clients.empty())     //逐个删除，沿用已有的释放链
     {
         auto it = clients.begin();
@@ -45,14 +45,14 @@ bool Server::create()
     int ret = acceptor->init_listen_fd(port);
     if(ret == -1)
     {
-        //Logger::add_log("服务器初始化： 监听套接字初始化失败", -1);
+        Logger::add_log("服务器初始化： 监听套接字初始化失败", -1);
         return false;
     }
     eventloop->set_acceptor(acceptor);  //先将acceptor给到eventloop再创建epoll实例
     bool res = eventloop->init();
     if(!res)
     {
-        //Logger::add_log("服务器初始化： epoll实例创建失败", -1);
+        Logger::add_log("服务器初始化： epoll实例创建失败", -1);
         return false;
     }
 

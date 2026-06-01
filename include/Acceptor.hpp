@@ -18,6 +18,7 @@ private:
     EventLoop *eventloop;
     Acceptor(EventLoop*&);
     std::function<void(int)> add_client_callback;
+    int _errno;
 
 public:
     static Acceptor& instance(EventLoop*&);

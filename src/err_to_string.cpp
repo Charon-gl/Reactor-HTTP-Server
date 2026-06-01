@@ -10,8 +10,8 @@ const char* err_to_string(int _errno)
         return "fd已存在于epoll";
     else if (_errno == ECONNABORTED) 
         return "客户端在未建立连接前主动断开";
-    /*else if(_errno == EOF)
-        return "客户端正常断开连接";*/
+    else if(_errno == 0)
+        return "客户端正常断开连接";
     else if (_errno == ENOENT)
         return "文件或目录不存在";
     else if(_errno == ECONNRESET)

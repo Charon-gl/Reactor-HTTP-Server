@@ -23,9 +23,9 @@ int Channel::event_handle(uint32_t revents)
     if(revents & EPOLLIN)
     {
         int ret = read_callback();
-        if(ret == 0)
+        if(ret >= 0)
         {
-            disconnect_callback(errno);
+            disconnect_callback(ret);
             return 0;
         }
         else if(ret == -1)
@@ -37,12 +37,12 @@ int Channel::event_handle(uint32_t revents)
         if(write_callback)
         {
             int ret = write_callback();
-            if(ret > 1)
+            //如果返回等于0，表示一次发不完，因此不能先关闭写端，要等待下一次写事件
+            if(ret == -100)
                 shutdown(fd, SHUT_WR);  //关闭写端(主动给客户端发送FIN，进入半关闭状态，但仍可以接收数据)
-            //如果返回等于1，表示一次发不完，因此不能先关闭写端，要等待下一次写事件
-            else if (ret == 0)
+            else if (ret > 0)
             {
-                disconnect_callback(errno);
+                disconnect_callback(ret); //fd异常，需要断开连接
                 return 0;
             }
             else if(ret == -1)
