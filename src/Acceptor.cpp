@@ -49,10 +49,10 @@ int Acceptor::accept_fd()
     sockaddr_in caddr;
     memset(&caddr, 0, sizeof(caddr));
     socklen_t len = sizeof(caddr);
-    int cfd = -1;
+
     while (1)
     {
-        cfd = accept(lfd->get_fd(), (sockaddr *)&caddr, &len);
+        int cfd = accept(lfd->get_fd(), (sockaddr *)&caddr, &len);
         if(cfd == -1) 
         {
             _errno = errno;
@@ -64,10 +64,8 @@ int Acceptor::accept_fd()
             if (res == Err_Manager::Action_Callback::CLOSE_ALL)
                 return -1;
         }
-        break;
-    }
-    if(cfd != -1)
         add_client_callback(cfd);
+    }
     return -100;
 }
 

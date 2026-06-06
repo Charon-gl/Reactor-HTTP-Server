@@ -14,7 +14,7 @@ Err_Manager::Action_Callback Err_Manager::epoll_ctl_err(int _errno, int _fd)
         return Action_Callback::IGNORE;
     if (_errno == EINTR)
         return Action_Callback::RETRY;
-    if (_errno == ECONNRESET || _errno == EINVAL)
+    if (_errno == ECONNRESET || _errno ==  EINVAL)
         return Action_Callback::CLOSE_FD;
     if (_errno == EBADF)    //单EBADF无法判断是epfd的问题还是fd的问题
         return _fd == -1 ? Action_Callback::CLOSE_FD : Action_Callback::CLOSE_ALL;
@@ -24,7 +24,7 @@ Err_Manager::Action_Callback Err_Manager::epoll_ctl_err(int _errno, int _fd)
 
 Err_Manager::Action_Callback Err_Manager::accept_err(int _errno)
 {
-    if (_errno == ECONNABORTED || _errno == EMFILE || _errno == ENOSPC)
+    if (_errno == EAGAIN || _errno == EWOULDBLOCK || _errno == ECONNABORTED || _errno == ENOSPC || _errno == EMFILE || _errno == ECONNRESET)
         return Action_Callback::IGNORE;
     if (_errno == EINTR)
         return Action_Callback::RETRY;

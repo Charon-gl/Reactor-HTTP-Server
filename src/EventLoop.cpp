@@ -74,7 +74,7 @@ void EventLoop::loop()
         }
         for (int i = 0; i < nums_fd; ++i)
         {
-            /*if(evs[i].data.fd == acceptor->get_lfd())     将acceptor的连接任务放到读事件里完成，只需顺序分配即可
+            /*if(evs[i].data.fd == acceptor->get_lfd()->get_fd())     //将acceptor的连接任务放到读事件里完成，只需顺序分配即可
                 acceptor->accept_fd();
             else
             {*/
