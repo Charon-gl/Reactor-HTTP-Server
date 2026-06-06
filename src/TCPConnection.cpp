@@ -1,7 +1,7 @@
 #include "TCPConnection.hpp"
 
-TCPConnection::TCPConnection(int fd, std::function<void(std::shared_ptr<Channel>&)> add_client_callback) 
-    : channel(std::make_shared<Channel>(fd)), write_buf_len(0), pre_pos(0), set_write_listen(false), write_shutdown(false), _errno(errno)
+TCPConnection::TCPConnection(int fd, ThreadPool* _threadpool, std::function<void(std::shared_ptr<Channel>&)> add_client_callback) 
+    : channel(std::make_shared<Channel>(fd)), threadpool(_threadpool), write_buf_len(0), pre_pos(0), set_write_listen(false), write_shutdown(false), _errno(errno)
 {
     //添加channel到epoll实例
     add_client_callback(channel);
@@ -44,8 +44,32 @@ int TCPConnection::handle_reading()
         recv_buf += '\0';
     }
     if (!write_shutdown) // 写端关闭后，不再受理任何请求
-        pre_send(HTTP_Analysis::package(recv_buf));
-    return -100;    //无特殊意义，仅表示读回调正常完成
+    {//HTTP解析与生成响应报文的任务交给线程池
+        const std::weak_ptr<TCPConnection> weak_self = shared_from_this();
+        auto task = [weak_self]
+        {
+            auto it = weak_self.lock(); // 尝试升级成shared_ptr
+            if(!it)     //表示连接已被释放
+                return;
+
+            std::string response_data = HTTP_Analysis::package(it->recv_buf);
+            
+            //加入主线程的任务队列，并通知主线程
+            auto task_to_main_thread = [weak_self, _response_data = std::move(response_data)]   //传右值接管内存，避免拷贝开销
+            {
+                auto _it = weak_self.lock();    //尝试升级成shared_ptr
+                if(!_it)
+                    return;
+
+                _it->pre_send(_response_data);
+            };
+            it->add_task_and_call_main_thread(std::move(task_to_main_thread));
+            return;
+        };
+
+        threadpool->add_task(std::move(task));
+    }
+    return -100; // 无特殊意义，仅表示读回调正常完成
 }
 
 int TCPConnection::handle_writing()
@@ -79,6 +103,7 @@ int TCPConnection::handle_writing()
     return -100; //表示写缓冲区的内容已全部发送
 }
 
+void TCPConnection::set_add_task_and_call_main_thread(std::function<void(std::function<void()>)> _cb) { add_task_and_call_main_thread = std::move(_cb); }
 void TCPConnection::set_disconnect(std::function<void(int, int)> _cb) { disconnect_callback = std::move(_cb); }
 
 void TCPConnection::pre_send(const std::string& data)

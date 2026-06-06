@@ -1,7 +1,8 @@
 cmake_minimum_required(VERSION 3.15.1)
 project(Reactor_Server)
 
-#服务器程序
+set(CMAKE_CXX_STANDARD 20)
+
 #查找源文件
 file(GLOB SRC ${PROJECT_SOURCE_DIR}/src/*.cpp)
 add_executable(Server ${SRC})

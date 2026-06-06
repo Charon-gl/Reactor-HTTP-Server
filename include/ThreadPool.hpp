@@ -13,11 +13,11 @@ class ThreadPool
 public:
     ThreadPool(int num_threads);
     
-    template <typename T, typename... Args>
-    void add_task(T&& t, Args&& ...args)
+    template <typename Func, typename... Args>
+    void add_task(Func&& func, Args&& ...args)
     {
-        task_queue.push([f = std::forward<T>(t), _args = std::forward<Args>(args)...] { 
-            return std::function<void()>(std::forward<T>(f), std::forward<Args>(_args)...); 
+        task_queue.push([f = std::forward<Func>(func), ...args = std::forward<Args>(args)] { 
+            f(args...); 
         });
         condition.notify_one(); //添加了任务，通知一个线程来取任务
     }

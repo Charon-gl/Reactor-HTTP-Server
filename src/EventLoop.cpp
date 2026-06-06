@@ -43,6 +43,16 @@ bool EventLoop::init()
                 return false;
             }
         }
+
+        epoll_event efd_ev;
+        efd_ev.data.fd = _eventfd->get_fd();
+        efd_ev.events = EPOLLIN | EPOLLET;
+        ret = epoll_ctl(epfd->get_fd(), EPOLL_CTL_ADD, _eventfd->get_fd(), &efd_ev);
+        if(ret == -1)
+        {
+            //std::cerr << "eventfd初始化失败" << std::endl;
+            return false;
+        }
         break;
     }
     channels.emplace(std::pair<int, std::shared_ptr<Channel>>(lfd, acceptor->get_lfd()));
@@ -51,7 +61,8 @@ bool EventLoop::init()
 
 EventLoop& EventLoop::instance() { return eventloop; }
 
-EventLoop::EventLoop() : acceptor(nullptr), evs(std::vector<epoll_event>(1024)), is_stop(false), _errno(0) {}
+EventLoop::EventLoop() 
+    : acceptor(nullptr), evs(std::vector<epoll_event>(1024)), _eventfd(std::make_unique<Channel>(eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC))), is_stop(false), _errno(0) {}
 
 void EventLoop::set_acceptor(Acceptor *&_acceptor) { acceptor = _acceptor; }
 
@@ -72,15 +83,32 @@ void EventLoop::loop()
                 return;
             }
         }
+
+        if(!tasks.empty())
+        {
+            eventfd_t _efd_ev;
+            eventfd_read(_eventfd->get_fd(), &_efd_ev);    // 只需将计数器清零即可，无需在意具体请求数
+            std::lock_guard<std::mutex> lock(mtx); // 持续占有锁，直到队列任务全部完成，否则持续不断的有任务加入
+            while(!tasks.empty())
+            {
+                auto task = std::move(tasks.front());
+                task();
+                tasks.pop();
+            }
+        }
+
         for (int i = 0; i < nums_fd; ++i)
         {
             /*if(evs[i].data.fd == acceptor->get_lfd())     将acceptor的连接任务放到读事件里完成，只需顺序分配即可
                 acceptor->accept_fd();
             else
             {*/
-                int res = channels[evs[i].data.fd]->event_handle(evs[i].events);
-                if(res == -1)   //表示发生了严重错误，需要关闭全站
-                    is_stop = true;
+            int fd = evs[i].data.fd;
+            if(fd == _eventfd->get_fd())
+                continue;
+            int res = channels[fd]->event_handle(evs[i].events);
+            if(res == -1)   //表示发生了严重错误，需要关闭全站
+                is_stop = true;
         }
     }
     call_close_all(_errno);
@@ -88,6 +116,7 @@ void EventLoop::loop()
 }
 
 int EventLoop::get_epfd() const { return epfd->get_fd(); }
+int EventLoop::get_eventfd() const { return _eventfd->get_fd(); }
 
 void EventLoop::update_Channel(Channel*& ch)
 {

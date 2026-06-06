@@ -22,14 +22,17 @@ int Channel::event_handle(uint32_t revents)
     
     if(revents & EPOLLIN)
     {
-        int ret = read_callback();
-        if(ret >= 0)
+        if(read_callback)
         {
-            disconnect_callback(ret);
-            return 0;
+            int ret = read_callback();
+            if(ret >= 0)
+            {
+                disconnect_callback(ret);
+                return 0;
+            }
+            else if(ret == -1)
+                return -1;
         }
-        else if(ret == -1)
-            return -1;
     }
     
     if (revents & EPOLLOUT)

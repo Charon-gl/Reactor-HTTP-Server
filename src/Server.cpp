@@ -1,14 +1,18 @@
 #include "Server.hpp"
 
 Server::Server(const std::string& _log_file_)
-    : port(0), eventloop(&EventLoop::instance()), acceptor(nullptr), logger(&Logger::instance(_log_file_)) {}
+    : port(0), eventloop(&EventLoop::instance()), acceptor(nullptr), logger(&Logger::instance(_log_file_)) , threadpool(std::make_unique<ThreadPool>(NUM_THREADS)) {}
 
 void Server::add_client(int fd)
 {
-    clients.emplace(std::pair<int, std::unique_ptr<TCPConnection>>(fd, std::make_unique<TCPConnection>(fd, [this](std::shared_ptr<Channel> new_channel){ 
+    clients.emplace(std::pair<int, std::shared_ptr<TCPConnection>>(fd, std::make_shared<TCPConnection>(fd, threadpool.get(), [this](std::shared_ptr<Channel> new_channel) { 
         eventloop->add_new_channel(new_channel); 
     })));
-    clients[fd]->set_disconnect([this](int _fd, int _errno) {
+    clients[fd]->set_add_task_and_call_main_thread([this](std::function<void()> _cb) { 
+        eventloop->enqueue(std::move(_cb));
+        eventfd_write(eventloop->get_eventfd(), static_cast<eventfd_t>(1));     //这一步是为结束主线程在epoll_wait的阻塞用的
+    });
+    clients[fd]->set_disconnect([this](int _fd, int _errno) { 
         del_client(_fd, _errno); 
     });
 }
@@ -56,7 +60,7 @@ bool Server::create()
     bool res = eventloop->init();
     if(!res)
     {
-        logger->add_log(Logger::LOG_RANK::FATAL, "服务器初始化： epoll实例创建失败", -1);
+        logger->add_log(Logger::LOG_RANK::FATAL, "服务器初始化： EventLoop创建失败", -1);
         return false;
     }
 

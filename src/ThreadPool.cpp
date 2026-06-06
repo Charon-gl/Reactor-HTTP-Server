@@ -34,5 +34,8 @@ ThreadPool::~ThreadPool()
         condition.notify_all();
     }
     for(auto &i : thread_pool)
-        i.join();
+    {
+        if(i.joinable())
+            i.join();
+    }    
 }

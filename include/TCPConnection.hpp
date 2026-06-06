@@ -6,15 +6,17 @@
 #include <cstring>
 #include <errno.h>
 #include <functional>
+#include "ThreadPool.hpp"
 #include "Channel.hpp"
 #include "HTTP_Analysis.hpp"
 #include "Err_Manager.hpp"
 
 #define MAX_BUF_SIZE 1024
-class TCPConnection
+class TCPConnection : public std::enable_shared_from_this<TCPConnection>
 {
 private:
     std::shared_ptr<Channel> channel;
+    ThreadPool *threadpool;
     sockaddr_in addr;
     socklen_t *len;
     std::string recv_buf;
@@ -25,14 +27,16 @@ private:
     bool write_shutdown;
     int _errno;
 
+    std::function<void(std::function<void()>)> add_task_and_call_main_thread;
     std::function<void(int, int)> disconnect_callback; // 绑定的是Server的del_client()
 
 public:
-    TCPConnection(int, std::function<void(std::shared_ptr<Channel>&)>);
+    TCPConnection(int, ThreadPool*, std::function<void(std::shared_ptr<Channel>&)>);
 
     int handle_reading();
     int handle_writing();
 
+    void set_add_task_and_call_main_thread(std::function<void(std::function<void()>)>);
     void set_disconnect(std::function<void(int, int)>);
 
     void pre_send(const std::string&);     //将数据写入缓冲区，并注册写事件

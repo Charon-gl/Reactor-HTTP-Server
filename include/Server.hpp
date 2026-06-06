@@ -13,6 +13,9 @@
 #include "TCPConnection.hpp"
 #include "Logger.hpp"
 #include "err_to_string.hpp"
+#include "ThreadPool.hpp"
+
+#define NUM_THREADS 10
 
 class Server
 {
@@ -21,7 +24,8 @@ private:
     uint16_t port;
     Acceptor *acceptor;
     Logger *logger;
-    std::unordered_map<int, std::unique_ptr<TCPConnection>> clients;
+    std::unique_ptr<ThreadPool> threadpool;
+    std::unordered_map<int, std::shared_ptr<TCPConnection>> clients;
 
     Server(const std::string&);
 
