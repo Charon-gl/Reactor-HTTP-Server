@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <functional>
+#include <memory>
 #include <stdint.h>
 #include <arpa/inet.h>
 #include <unistd.h>
@@ -9,7 +10,7 @@
 #include <errno.h>
 #include <sys/epoll.h>
 
-class Channel
+class Channel : public std::enable_shared_from_this<Channel>
 {
 private:
     int fd;

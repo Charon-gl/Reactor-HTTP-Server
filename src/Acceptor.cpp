@@ -49,25 +49,23 @@ int Acceptor::accept_fd()
     sockaddr_in caddr;
     memset(&caddr, 0, sizeof(caddr));
     socklen_t len = sizeof(caddr);
-    int cfd = -1;
+
     while (1)
     {
-        cfd = accept(lfd->get_fd(), (sockaddr *)&caddr, &len);
+        int cfd = accept(lfd->get_fd(), (sockaddr *)&caddr, &len);
         if(cfd == -1) 
         {
             _errno = errno;
             auto res = Err_Manager::err_judge(Err_Manager::Action_Type::ACCEPT, _errno);
-            if (res == Err_Manager::Action_Callback::IGNORE)
-                return -100;
-            if (res == Err_Manager::Action_Callback::RETRY)
+            if (res == Err_Manager::Action_Callback::IGNORE || res == Err_Manager::Action_Callback::RETRY)
                 continue;
+            if(res == Err_Manager::Action_Callback::CLOSE_FD)   //触发EAGAIN / EWOULDBLOCK
+                break;
             if (res == Err_Manager::Action_Callback::CLOSE_ALL)
                 return -1;
         }
-        break;
-    }
-    if(cfd != -1)
         add_client_callback(cfd);
+    }
     return -100;
 }
 

@@ -34,7 +34,7 @@ bool EventLoop::init()
                 continue;
             if (res == Err_Manager::Action_Callback::CLOSE_FD)
             {
-                channels[lfd]->disconnect_callback(_errno);
+                channels[lfd].lock()->disconnect_callback(_errno);
                 return false;
             }
             if (res == Err_Manager::Action_Callback::CLOSE_ALL)
@@ -55,7 +55,7 @@ bool EventLoop::init()
         }
         break;
     }
-    channels.emplace(std::pair<int, std::shared_ptr<Channel>>(lfd, acceptor->get_lfd()));
+    channels.emplace(std::pair<int, std::weak_ptr<Channel>>(lfd, acceptor->get_lfd()));
     return true;
 }
 
@@ -84,16 +84,18 @@ void EventLoop::loop()
             }
         }
 
-        if(!tasks.empty())
+        if (!tasks.empty())
         {
             eventfd_t _efd_ev;
-            eventfd_read(_eventfd->get_fd(), &_efd_ev);    // 只需将计数器清零即可，无需在意具体请求数
-            std::lock_guard<std::mutex> lock(mtx); // 持续占有锁，直到队列任务全部完成，否则持续不断的有任务加入
-            while(!tasks.empty())
+            eventfd_read(_eventfd->get_fd(), &_efd_ev); // 只需将计数器清零即可，无需在意具体请求数
             {
-                auto task = std::move(tasks.front());
-                task();
-                tasks.pop();
+                std::lock_guard<std::mutex> lock(mtx); // 持续占有锁，直到队列任务全部完成，否则持续不断的有任务加入
+                while (!tasks.empty())
+                {
+                    auto task = std::move(tasks.front());
+                    task();
+                    tasks.pop();
+                }
             }
         }
 
@@ -106,9 +108,13 @@ void EventLoop::loop()
             int fd = evs[i].data.fd;
             if(fd == _eventfd->get_fd())
                 continue;
-            int res = channels[fd]->event_handle(evs[i].events);
-            if(res == -1)   //表示发生了严重错误，需要关闭全站
-                is_stop = true;
+            auto it = channels[fd].lock();
+            if(it)
+            {
+                int res = it->event_handle(evs[i].events);
+                if(res == -1)   //表示发生了严重错误，需要关闭全站
+                    is_stop = true;
+            }
         }
     }
     call_close_all(_errno);
@@ -173,7 +179,7 @@ void EventLoop::add_new_channel(const std::shared_ptr<Channel>& _ptr)
                 continue;
             if (res == Err_Manager::Action_Callback::CLOSE_FD)
             {
-                channels[fd]->disconnect_callback(_errno);
+                channels[fd].lock()->disconnect_callback(_errno);
                 return;
             }
             if (res == Err_Manager::Action_Callback::CLOSE_ALL)
@@ -184,8 +190,8 @@ void EventLoop::add_new_channel(const std::shared_ptr<Channel>& _ptr)
         }
         break;
     }
-    auto it = channels.emplace(std::pair<int, std::shared_ptr<Channel>>(fd, _ptr));
-    it.first->second->set_update_events([this](Channel *ch){ 
+    auto it = channels.emplace(std::pair<int, std::weak_ptr<Channel>>(fd, _ptr));
+    it.first->second.lock()->set_update_events([this](Channel *ch){ 
         this->update_Channel(ch); 
     });
 }

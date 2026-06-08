@@ -20,18 +20,21 @@ private:
     sockaddr_in addr;
     socklen_t *len;
     std::string recv_buf;
+    size_t recv_buf_len;    //记录每轮recv()后读缓冲区剩余可用空间
+    size_t recv_pre_pos;    //每轮recv()的起始写入位置
     std::string write_buf;
-    size_t write_buf_len;
-    size_t pre_pos;
+    size_t write_buf_len;   //记录每轮send()后读缓冲区剩余内容大小
+    size_t write_pre_pos;   //每轮send()的起始读入 位置
     bool set_write_listen;
     bool write_shutdown;
     int _errno;
 
     std::function<void(std::function<void()>)> add_task_and_call_main_thread;
     std::function<void(int, int)> disconnect_callback; // 绑定的是Server的del_client()
-
+    
 public:
-    TCPConnection(int, ThreadPool*, std::function<void(std::shared_ptr<Channel>&)>);
+    TCPConnection(int, ThreadPool*);
+    void init();
 
     int handle_reading();
     int handle_writing();
@@ -39,7 +42,7 @@ public:
     void set_add_task_and_call_main_thread(std::function<void(std::function<void()>)>);
     void set_disconnect(std::function<void(int, int)>);
 
-    void pre_send(const std::string&);     //将数据写入缓冲区，并注册写事件
+    void pre_send(std::shared_ptr<Channel>, const std::string&);     //将数据写入缓冲区，并注册写事件
 
     std::shared_ptr<Channel> get_channel() const;
     TCPConnection(TCPConnection &&) = delete;

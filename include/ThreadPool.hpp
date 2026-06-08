@@ -16,9 +16,12 @@ public:
     template <typename Func, typename... Args>
     void add_task(Func&& func, Args&& ...args)
     {
-        task_queue.push([f = std::forward<Func>(func), ...args = std::forward<Args>(args)] { 
-            f(args...); 
-        });
+        {
+            std::lock_guard<std::mutex> lock(mtx);
+            task_queue.push([f = std::forward<Func>(func), ... args = std::forward<Args>(args)] { 
+                f(args...); 
+            });
+        }
         condition.notify_one(); //添加了任务，通知一个线程来取任务
     }
 

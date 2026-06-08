@@ -15,7 +15,7 @@
 #include "err_to_string.hpp"
 #include "ThreadPool.hpp"
 
-#define NUM_THREADS 10
+#define NUM_THREADS 4
 
 class Server
 {

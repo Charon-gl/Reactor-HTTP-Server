@@ -24,11 +24,13 @@ Err_Manager::Action_Callback Err_Manager::epoll_ctl_err(int _errno, int _fd)
 
 Err_Manager::Action_Callback Err_Manager::accept_err(int _errno)
 {
-    if (_errno == ECONNABORTED || _errno == EMFILE || _errno == ENOSPC)
+    if (_errno == ECONNABORTED || _errno == EMFILE || _errno == ENOSPC || _errno == ECONNRESET)
         return Action_Callback::IGNORE;
     if (_errno == EINTR)
         return Action_Callback::RETRY;
-
+    if (_errno = EAGAIN || _errno == EWOULDBLOCK)
+        return Action_Callback::CLOSE_FD;
+        
     return Action_Callback::CLOSE_ALL;
 }
 

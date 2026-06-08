@@ -20,7 +20,7 @@ private:
     std::unique_ptr<Channel> epfd;
     Acceptor *acceptor;
     std::vector<epoll_event> evs;
-    std::unordered_map<int, std::shared_ptr<Channel>> channels;
+    std::unordered_map<int, std::weak_ptr<Channel>> channels;
     std::unique_ptr<Channel> _eventfd;
     int _errno;
     bool is_stop;
@@ -51,7 +51,8 @@ public:
 
     template <typename Func, typename... Args>
     void enqueue(Func&& func, Args&&... args){
-        tasks.push([f = std::forward<Func>(func), ...args = std::forward<Args>(args)] { 
+        std::unique_lock<std::mutex> lock(mtx);
+        tasks.push([f = std::forward<Func>(func), ... args = std::forward<Args>(args)] { 
             f(args...); 
         });
     }

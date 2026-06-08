@@ -5,15 +5,20 @@ Server::Server(const std::string& _log_file_)
 
 void Server::add_client(int fd)
 {
-    clients.emplace(std::pair<int, std::shared_ptr<TCPConnection>>(fd, std::make_shared<TCPConnection>(fd, threadpool.get(), [this](std::shared_ptr<Channel> new_channel) { 
-        eventloop->add_new_channel(new_channel); 
-    })));
-    clients[fd]->set_add_task_and_call_main_thread([this](std::function<void()> _cb) { 
+    clients.emplace(std::pair<int, std::shared_ptr<TCPConnection>>(fd, std::make_shared<TCPConnection>(fd, threadpool.get())));
+    clients[fd]->init();
+    eventloop->add_new_channel(clients[fd]->get_channel());
+    clients[fd]->get_channel()->enable_reading();
+
+    clients[fd]->set_add_task_and_call_main_thread([this](std::function<void()> _cb) {
         eventloop->enqueue(std::move(_cb));
-        eventfd_write(eventloop->get_eventfd(), static_cast<eventfd_t>(1));     //这一步是为结束主线程在epoll_wait的阻塞用的
+        eventfd_write(eventloop->get_eventfd(), static_cast<eventfd_t>(1)); // 这是为结束主线程在epoll_wait的阻塞用的
     });
+
     clients[fd]->set_disconnect([this](int _fd, int _errno) { 
-        del_client(_fd, _errno); 
+        eventloop->enqueue([this, _fd, _errno] {    //把断开连接的操作也丢到任务队列，避免工作线程执行时因为资源释放导致错误
+            del_client(_fd, _errno);
+        });
     });
 }
 
